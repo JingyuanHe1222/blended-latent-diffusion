@@ -1,6 +1,7 @@
 import argparse
 import numpy as np
 from PIL import Image
+import cv2
 
 from diffusers import DDIMScheduler, StableDiffusionPipeline
 import torch
@@ -110,10 +111,17 @@ class BlendedLatnetDiffusion:
         latents = latents.to("cuda").half()
 
         self.scheduler.set_timesteps(num_inference_steps)
-
-        for t in self.scheduler.timesteps[
+        
+        # morph dilation samples
+        total = self.scheduler.timesteps[int(len(self.scheduler.timesteps) * blending_percentage) :].size(0)
+        threshold = total // 2 # threshold
+        print("dilation step threshold", threshold)
+        dilation_init = 5
+        print("dilation init", dilation_init)
+        
+        for i, t in enumerate(self.scheduler.timesteps[
             int(len(self.scheduler.timesteps) * blending_percentage) :
-        ]:
+        ]):
             # expand the latents if we are doing classifier-free guidance to avoid doing two forward passes.
             latent_model_input = torch.cat([latents] * 2)
 
@@ -137,16 +145,20 @@ class BlendedLatnetDiffusion:
             latents = self.scheduler.step(noise_pred, t, latents).prev_sample
             
             # moprh transform
-            threshold = self.scheduler.timesteps[int(len(self.scheduler.timesteps) * blending_percentage) :] //2 # threshold
             np_mask = latent_mask.squeeze().cpu().numpy()
             # close the sparse spots -> small kernel
             closed = cv2.morphologyEx(np_mask, cv2.MORPH_CLOSE, np.ones((1, 1),np.uint8), iterations=1) 
             latent_mask = closed
-            if t < threshold: # only 
-                # dialated for previous steps -> larger kernel\
-                latent_mask = cv2.dilate(closed,np.ones((3, 3),np.uint8),iterations = 1)
+            if i > threshold: # first denosing steps only 
+                print('i', i)
+                # dialated for previous steps -> larger kernel
+                kernel_size = int(dilation_init*i/threshold)
+                print("kernel size", kernel_size)
+                kernel = np.ones((kernel_size, kernel_size),np.uint8)
+#                 latent_mask = cv2.erode(closed.astype(np.uint8),kernel,iterations = 1)
+                latent_mask = cv2.dilate(closed.astype(np.uint8),kernel,iterations = 1)
             latent_mask = torch.from_numpy(latent_mask)
-            latent_mask = mask[None, None, :, :].to("cuda")
+            latent_mask = latent_mask[None, None, :, :].to("cuda")
 
             # Blending
             noise_source_latents = self.scheduler.add_noise(
