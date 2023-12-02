@@ -1,4 +1,8 @@
 
 #!/bin/bash
 
-python scripts/text_editing_stable_diffusion.py --prompt "cloud" --init_image "inputs/img.png" --mask "inputs/mask_cloud.png" --output_path "outputs/mask_cloud/morph_b_cloud.png"
+# object=flower
+# mask_object=""
+
+
+python scripts/text_editing_stable_diffusion.py --prompt "a stone" --init_image "inputs/img.png" --mask "inputs/mask.png" --output_path "outputs/mask/b_a_stone.png"

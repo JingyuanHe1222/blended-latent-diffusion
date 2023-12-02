@@ -171,10 +171,7 @@ tags
 /transformers
 
 # Project Stuff
-outputs/
-inputs/
 evaluations/
 *.ckpt
 src/
-outputs/
 models/

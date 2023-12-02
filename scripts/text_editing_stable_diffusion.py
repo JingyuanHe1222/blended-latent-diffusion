@@ -82,7 +82,7 @@ class BlendedLatnetDiffusion:
         image = Image.open(image_path)
         image = image.resize((height, width), Image.BILINEAR)
         image = np.array(image)[:, :, :3]
-        source_latents = self._image2latent(image)
+        source_latents = self._image2latent(image) # the souce image latents
         latent_mask, org_mask = self._read_mask(mask_path)
 
         text_input = self.tokenizer(
@@ -92,7 +92,7 @@ class BlendedLatnetDiffusion:
             truncation=True,
             return_tensors="pt",
         )
-        text_embeddings = self.text_encoder(text_input.input_ids.to("cuda"))[0]
+        text_embeddings = self.text_encoder(text_input.input_ids.to("cuda"))[0] # encode prompt -> desired subject
 
         max_length = text_input.input_ids.shape[-1]
         uncond_input = self.tokenizer(
@@ -101,7 +101,7 @@ class BlendedLatnetDiffusion:
             max_length=max_length,
             return_tensors="pt",
         )
-        uncond_embeddings = self.text_encoder(uncond_input.input_ids.to("cuda"))[0]
+        uncond_embeddings = self.text_encoder(uncond_input.input_ids.to("cuda"))[0] # blank
         text_embeddings = torch.cat([uncond_embeddings, text_embeddings])
 
         latents = torch.randn(
@@ -129,7 +129,7 @@ class BlendedLatnetDiffusion:
                 latent_model_input, timestep=t
             )
 
-            # predict the noise residual
+            # predict the noise residual -> should add the multimoadl embeddings of text and images
             with torch.no_grad():
                 noise_pred = self.unet(
                     latent_model_input, t, encoder_hidden_states=text_embeddings
@@ -144,21 +144,21 @@ class BlendedLatnetDiffusion:
             # compute the previous noisy sample x_t -> x_t-1
             latents = self.scheduler.step(noise_pred, t, latents).prev_sample
             
-            # moprh transform
-            np_mask = latent_mask.squeeze().cpu().numpy()
-            # close the sparse spots -> small kernel
-            closed = cv2.morphologyEx(np_mask, cv2.MORPH_CLOSE, np.ones((1, 1),np.uint8), iterations=1) 
-            latent_mask = closed
-            if i > threshold: # first denosing steps only 
-                print('i', i)
-                # dialated for previous steps -> larger kernel
-                kernel_size = int(dilation_init*i/threshold)
-                print("kernel size", kernel_size)
-                kernel = np.ones((kernel_size, kernel_size),np.uint8)
-#                 latent_mask = cv2.erode(closed.astype(np.uint8),kernel,iterations = 1)
-                latent_mask = cv2.dilate(closed.astype(np.uint8),kernel,iterations = 1)
-            latent_mask = torch.from_numpy(latent_mask)
-            latent_mask = latent_mask[None, None, :, :].to("cuda")
+#             # moprh transform
+#             np_mask = latent_mask.squeeze().cpu().numpy()
+#             # close the sparse spots -> small kernel
+#             closed = cv2.morphologyEx(np_mask, cv2.MORPH_CLOSE, np.ones((1, 1),np.uint8), iterations=1) 
+#             latent_mask = closed
+#             if i > threshold: # first denosing steps only 
+#                 print('i', i)
+#                 # dialated for previous steps -> larger kernel
+#                 kernel_size = int(dilation_init*i/threshold)
+#                 print("kernel size", kernel_size)
+#                 kernel = np.ones((kernel_size, kernel_size),np.uint8)
+# #                 latent_mask = cv2.erode(closed.astype(np.uint8),kernel,iterations = 1)
+#                 latent_mask = cv2.dilate(closed.astype(np.uint8),kernel,iterations = 1)
+#             latent_mask = torch.from_numpy(latent_mask)
+#             latent_mask = latent_mask[None, None, :, :].to("cuda")
 
             # Blending
             noise_source_latents = self.scheduler.add_noise(
