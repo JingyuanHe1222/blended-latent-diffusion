@@ -135,6 +135,18 @@ class BlendedLatnetDiffusion:
 
             # compute the previous noisy sample x_t -> x_t-1
             latents = self.scheduler.step(noise_pred, t, latents).prev_sample
+            
+            # moprh transform
+            threshold = self.scheduler.timesteps[int(len(self.scheduler.timesteps) * blending_percentage) :] //2 # threshold
+            np_mask = latent_mask.squeeze().cpu().numpy()
+            # close the sparse spots -> small kernel
+            closed = cv2.morphologyEx(np_mask, cv2.MORPH_CLOSE, np.ones((1, 1),np.uint8), iterations=1) 
+            latent_mask = closed
+            if t < threshold: # only 
+                # dialated for previous steps -> larger kernel\
+                latent_mask = cv2.dilate(closed,np.ones((3, 3),np.uint8),iterations = 1)
+            latent_mask = torch.from_numpy(latent_mask)
+            latent_mask = mask[None, None, :, :].to("cuda")
 
             # Blending
             noise_source_latents = self.scheduler.add_noise(
