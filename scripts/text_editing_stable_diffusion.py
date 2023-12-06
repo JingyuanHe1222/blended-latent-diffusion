@@ -146,11 +146,11 @@ class BlendedLatnetDiffusion:
             
             
             latent_mask, org_mask = self._read_mask(mask_path)
-            
+
             # moprh transform
             if self.args.morph:
-                mask = morph_dilation(org_mask)
-                latent_mask = torch.from_numpy(mask).half().to(self.args.device)
+                np_mask = latent_mask.squeeze().cpu().numpy()
+                latent_mask = self.morph_dilation(np_mask, i, threshold, dilation_init)
 
             # Blending
             noise_source_latents = self.scheduler.add_noise(
@@ -170,20 +170,27 @@ class BlendedLatnetDiffusion:
         return images
     
     
-    def morph_dilation(self, mask):
-        closed = cv2.morphologyEx(np_mask, cv2.MORPH_CLOSE, np.ones((1, 1),np.uint8), iterations=1) 
-        latent_mask = closed
-        if i > threshold: # first denosing steps only 
+    def morph_dilation(self, mask, i, threshold, dilation_init):
+            closed = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, np.ones((1, 1),np.uint8), iterations=1) 
+            latent_mask = closed
+
             print('i', i)
-            # dialated for previous steps -> larger kernel
-            kernel_size = int(dilation_init*i/threshold)
-            print("kernel size", kernel_size)
-            kernel = np.ones((kernel_size, kernel_size),np.uint8)
-#                 latent_mask = cv2.erode(closed.astype(np.uint8),kernel,iterations = 1)
-            dilated_mask = cv2.dilate(closed.astype(np.uint8),kernel,iterations = 1)
-        dilated_mask = torch.from_numpy(dilated_mask)
-        dilated_mask = dilated_mask[None, None, :, :]       
-        return dilated_mask
+
+            if i < threshold: # first denosing steps only 
+                print("erode: ")
+                kernel_size = 2
+                kernel = np.ones((kernel_size, kernel_size),np.uint8)
+                latent_mask = cv2.erode(closed.astype(np.uint8),kernel,iterations = 1)
+            else: 
+                print("dilate: ")
+                # dialated for previous steps -> larger kernel
+                kernel_size = int(dilation_init*i/threshold)
+                print("kernel size", kernel_size)
+                kernel = np.ones((kernel_size, kernel_size),np.uint8)
+                latent_mask = cv2.dilate(closed.astype(np.uint8),kernel,iterations = 1)
+            latent_mask = torch.from_numpy(latent_mask)
+            latent_mask = latent_mask[None, None, :, :].to("cuda")
+            return latent_mask
 
         
     @torch.no_grad()
