@@ -204,9 +204,13 @@ class BlendedLatnetDiffusion:
         return latents
 
     def _read_mask(self, mask_path: str, dest_size=(64, 64)):
+        print("open image...")
         org_mask = Image.open(mask_path).convert("L")
         mask = org_mask.resize(dest_size, Image.NEAREST)
-        mask = np.array(mask) / 255
+        mask = np.array(mask)
+        print("mask type:", type(mask))
+        if np.max(mask) > 1: 
+            mask = np.array(mask) / 255
         mask[mask < 0.5] = 0
         mask[mask >= 0.5] = 1
         mask = mask[np.newaxis, np.newaxis, ...]
