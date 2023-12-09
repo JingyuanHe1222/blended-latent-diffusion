@@ -148,7 +148,9 @@ class BlendedLatnetDiffusion:
             latent_mask, org_mask = self._read_mask(mask_path)
 
             # moprh transform
-            if self.args.morph:
+            if self.args.morph == True:
+                print(self.args.morph)
+                print("use morph")
                 np_mask = latent_mask.squeeze().cpu().numpy()
                 latent_mask = self.morph_dilation(np_mask, i, threshold, dilation_init)
 
@@ -174,10 +176,7 @@ class BlendedLatnetDiffusion:
             closed = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, np.ones((1, 1),np.uint8), iterations=1) 
             latent_mask = closed
 
-            print('i', i)
-
-            if i < threshold: # first denosing steps only 
-                print("erode: ")
+            if i < threshold: # first denosing steps only
                 kernel_size = 2
                 kernel = np.ones((kernel_size, kernel_size),np.uint8)
                 latent_mask = cv2.erode(closed.astype(np.uint8),kernel,iterations = 1)
@@ -204,11 +203,9 @@ class BlendedLatnetDiffusion:
         return latents
 
     def _read_mask(self, mask_path: str, dest_size=(64, 64)):
-        print("open image...")
         org_mask = Image.open(mask_path).convert("L")
         mask = org_mask.resize(dest_size, Image.NEAREST)
         mask = np.array(mask)
-        print("mask type:", type(mask))
         if np.max(mask) > 1: 
             mask = np.array(mask) / 255
         mask[mask < 0.5] = 0
