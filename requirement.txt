@@ -1,4 +1,4 @@
 diffusers
-transformers
+transformers==4.31.0
 accelerate
 opencv-python
